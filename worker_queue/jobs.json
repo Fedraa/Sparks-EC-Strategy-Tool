@@ -1,19 +1,6 @@
 {
-  "generated_at": "2026-10-01T10:17:19.177Z",
+  "generated_at": "2026-10-02T02:04:06.075Z",
   "jobs": [
-    {
-      "sheet_row": 6,
-      "job_id": "JOB-TJD-Q001",
-      "scrape_run_id": "",
-      "center_id": "TJD",
-      "query_id": "Q001",
-      "query": "playground",
-      "latitude": -6.173588,
-      "longitude": 106.7836748,
-      "radius_m": 7000,
-      "status": "Pending",
-      "gosom_job_id": "f950784a-62c7-4f4b-824d-d2ff227da408"
-    },
     {
       "sheet_row": 7,
       "job_id": "JOB-TJD-Q002",
@@ -255,6 +242,19 @@
       "center_id": "PJR",
       "query_id": "Q008",
       "query": "pediatric clinic",
+      "latitude": -6.589721,
+      "longitude": 106.8044928,
+      "radius_m": 7000,
+      "status": "Pending",
+      "gosom_job_id": ""
+    },
+    {
+      "sheet_row": 26,
+      "job_id": "JOB-PJR-Q009",
+      "scrape_run_id": "",
+      "center_id": "PJR",
+      "query_id": "Q009",
+      "query": "family restaurant",
       "latitude": -6.589721,
       "longitude": 106.8044928,
       "radius_m": 7000,
