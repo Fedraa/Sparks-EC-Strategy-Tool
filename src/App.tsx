@@ -148,7 +148,17 @@ export default function App() {
 
   // Open Google Maps link handler (opens Pic 2 directly in browser)
   const handleOpenGmapsRoute = () => {
-    window.open(gmapsRouteUrl, '_blank');
+    try {
+      const link = document.createElement('a');
+      link.href = gmapsRouteUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      window.open(gmapsRouteUrl, '_blank', 'noopener,noreferrer');
+    }
   };
 
   // Handler: "Try Sample Data"
