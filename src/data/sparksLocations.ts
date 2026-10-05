@@ -1,11 +1,16 @@
+import centersData from './centersData.json';
+
 export interface SparksCenterLocation {
   id: string;
+  code?: string;
   name: string;
   address: string;
   lat: number;
   lng: number;
   city: string;
+  region?: string;
   description: string;
+  poiCount?: number;
 }
 
 export interface MapPoiItem {
@@ -25,55 +30,21 @@ export interface MapPoiItem {
   contactPerson?: string;
   contactPhone?: string;
   notes?: string;
+  score?: number;
+  ranking?: number;
+  tier?: string;
+  trafficScore?: number;
+  familyScore?: number;
+  sesScore?: number;
+  distanceScore?: number;
+  rating?: number | null;
+  reviewCount?: number;
+  mapsUrl?: string;
+  centerAssigned?: string;
 }
 
-export const PRESET_SPARKS_CENTERS: SparksCenterLocation[] = [
-  {
-    id: 'sparks-alam-sutera',
-    name: 'Sparks Center — Alam Sutera',
-    address: 'Jl. Jalur Sutera Barat No. 16, Alam Sutera, Tangerang',
-    lat: -6.2291778,
-    lng: 106.633914,
-    city: 'Tangerang',
-    description: 'Flagship Early Childhood Center in high-density family corridor.',
-  },
-  {
-    id: 'sparks-bsd',
-    name: 'Sparks Center — The Breeze BSD',
-    address: 'The Breeze BSD City, Unit L-28, BSD Green Office Park, Tangerang Selatan',
-    lat: -6.3015,
-    lng: 106.6534,
-    city: 'Tangerang Selatan',
-    description: 'Surrounded by top international schools and modern residential clusters.',
-  },
-  {
-    id: 'sparks-kelapa-gading',
-    name: 'Sparks Center — Mall Kelapa Gading',
-    address: 'Mall Kelapa Gading 3, Level 2, Jl. Boulevard Raya, Jakarta Utara',
-    lat: -6.1585,
-    lng: 106.9088,
-    city: 'Jakarta Utara',
-    description: 'High-density commercial family hub with premier Christian and public schools.',
-  },
-  {
-    id: 'sparks-pondok-indah',
-    name: 'Sparks Center — Pondok Indah',
-    address: 'Jl. Metro Pondok Indah Blok III-B, Kebayoran Lama, Jakarta Selatan',
-    lat: -6.2657,
-    lng: 106.7842,
-    city: 'Jakarta Selatan',
-    description: 'Affluent residential catchment with leading mom communities and pediatric centers.',
-  },
-  {
-    id: 'sparks-pakuwon-surabaya',
-    name: 'Sparks Center — Pakuwon Mall Surabaya',
-    address: 'Pakuwon Mall Level 2, Jl. Mayjend Jonosewojo No. 2, Surabaya Barat',
-    lat: -7.2889,
-    lng: 112.6756,
-    city: 'Surabaya',
-    description: 'Major family weekend destination in West Surabaya.',
-  },
-];
+export const PRESET_SPARKS_CENTERS: SparksCenterLocation[] = centersData as SparksCenterLocation[];
+
 
 // Seeded sample POIs within 5-7 km radius of Alam Sutera / BSD (-6.2291, 106.6339)
 export const SAMPLE_POIS_ALAM_SUTERA: Omit<MapPoiItem, 'distanceKm'>[] = [
@@ -587,35 +558,57 @@ export function calculateDistanceKm(
   return Number(d.toFixed(2));
 }
 
+import sheetsData from './sheetsData.json';
+
 // Generate realistic POIs based on center lat/lng and max radius
 export function getPoisForCenter(
   centerLat: number,
   centerLng: number,
   radiusMeters: number,
-  selectedCategoryIds: number[]
+  selectedCategoryIds: number[],
+  centerName?: string
 ): MapPoiItem[] {
   const maxRadiusKm = radiusMeters / 1000;
+  const poisByCenter = (sheetsData as any).poisByCenter || {};
 
-  // Offset standard sample POIs relative to the selected center if needed
-  const centerDeltaLat = centerLat - -6.2291778;
-  const centerDeltaLng = centerLng - 106.633914;
+  // Find matching center by name or coordinates
+  let matchedCenterName = centerName;
+  if (!matchedCenterName) {
+    const foundPreset = PRESET_SPARKS_CENTERS.find(
+      (c) => calculateDistanceKm(centerLat, centerLng, c.lat, c.lng) < 0.2
+    );
+    if (foundPreset) {
+      matchedCenterName = foundPreset.name;
+    }
+  }
 
-  const generated = SAMPLE_POIS_ALAM_SUTERA.map((item) => {
-    // Project relative coordinates around the current center
-    const adjustedLat = item.lat + centerDeltaLat;
-    const adjustedLng = item.lng + centerDeltaLng;
-    const dist = calculateDistanceKm(centerLat, centerLng, adjustedLat, adjustedLng);
+  if (matchedCenterName && poisByCenter[matchedCenterName]) {
+    const centerPois: MapPoiItem[] = poisByCenter[matchedCenterName];
+    return centerPois
+      .filter((poi) => poi.distanceKm <= maxRadiusKm)
+      .filter((poi) => selectedCategoryIds.includes(poi.categoryId))
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  }
 
-    return {
-      ...item,
-      lat: adjustedLat,
-      lng: adjustedLng,
-      distanceKm: dist,
-    };
-  });
+  // Fallback / Custom coordinates calculation across all database POIs
+  const allPois: MapPoiItem[] = [];
+  const seenIds = new Set<string>();
 
-  return generated
-    .filter((poi) => poi.distanceKm <= maxRadiusKm)
-    .filter((poi) => selectedCategoryIds.includes(poi.categoryId))
-    .sort((a, b) => a.distanceKm - b.distanceKm);
+  for (const list of Object.values(poisByCenter) as MapPoiItem[][]) {
+    for (const p of list) {
+      if (!seenIds.has(p.id)) {
+        seenIds.add(p.id);
+        const dist = calculateDistanceKm(centerLat, centerLng, p.lat, p.lng);
+        if (dist <= maxRadiusKm && selectedCategoryIds.includes(p.categoryId)) {
+          allPois.push({
+            ...p,
+            distanceKm: dist,
+          });
+        }
+      }
+    }
+  }
+
+  return allPois.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
+

@@ -123,7 +123,44 @@ Ensure the venues mentioned are authentic, localized landmarks and relevant hubs
   }
 });
 
+// Google Sheets endpoints
+app.get('/api/sheets/centers', async (_req, res) => {
+  try {
+    const { promises: fsPromises } = await import('fs');
+    const centersPath = path.resolve(__dirname, 'src/data/centersData.json');
+    const fileContent = await fsPromises.readFile(centersPath, 'utf-8');
+    const data = JSON.parse(fileContent);
+    return res.json({ success: true, data });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sheets/pois', async (req, res) => {
+  try {
+    const { promises: fsPromises } = await import('fs');
+    const centerQuery = req.query.center as string;
+    const sheetsPath = path.resolve(__dirname, 'src/data/sheetsData.json');
+    const fileContent = await fsPromises.readFile(sheetsPath, 'utf-8');
+    const allData = JSON.parse(fileContent);
+
+    if (centerQuery && allData.poisByCenter?.[centerQuery]) {
+      return res.json({
+        success: true,
+        center: centerQuery,
+        count: allData.poisByCenter[centerQuery].length,
+        data: allData.poisByCenter[centerQuery],
+      });
+    }
+
+    return res.json({ success: true, data: allData });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Setup Vite middleware in dev or static files in production
+
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 

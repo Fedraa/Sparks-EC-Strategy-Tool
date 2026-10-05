@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   MapPin,
   Search,
@@ -20,11 +20,17 @@ import {
   Copy,
   ExternalLink,
   Check,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { POI_CATEGORIES } from '../data/poiData';
-import { MapPoiItem, SparksCenterLocation } from '../data/sparksLocations';
+import { MapPoiItem, SparksCenterLocation, PRESET_SPARKS_CENTERS } from '../data/sparksLocations';
 
 interface SidebarProps {
+  centers?: SparksCenterLocation[];
+  onSelectCenter?: (val: SparksCenterLocation) => void;
+  onSyncSheets?: () => void;
+  isSyncing?: boolean;
   searchAddress: string;
   setSearchAddress: (val: string) => void;
   latitude: string;
@@ -51,6 +57,7 @@ interface SidebarProps {
   copiedGmaps: boolean;
 }
 
+
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const POI_ICONS: Record<number, React.ReactNode> = {
@@ -69,6 +76,10 @@ const POI_ICONS: Record<number, React.ReactNode> = {
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({
+  centers = PRESET_SPARKS_CENTERS,
+  onSelectCenter,
+  onSyncSheets,
+  isSyncing = false,
   searchAddress,
   setSearchAddress,
   latitude,
@@ -93,6 +104,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCopyGmapsRoute,
   copiedGmaps,
 }) => {
+  const [showCustomCoords, setShowCustomCoords] = useState(false);
+  const availableCenters = centers && centers.length > 0 ? centers : PRESET_SPARKS_CENTERS;
+
   const toggleCategory = (id: number) => {
     setSelectedCategoryIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -109,83 +123,153 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside className="w-full lg:w-[320px] shrink-0 bg-white rounded-2xl border border-[#DCE8DE] shadow-xs p-4 sm:p-5 space-y-4">
-      {/* Title */}
-      <div className="flex items-center gap-2 text-[#2A5739] font-bold text-sm">
-        <MapPin className="w-4 h-4 text-[#356B48]" />
-        <span>Sparks Center Location</span>
-      </div>
-
-      {/* SEARCH ADDRESS */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-[#5A7766]">
-          Search Address
-        </label>
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-[#86A292] absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchAddress}
-              onChange={(e) => setSearchAddress(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && onFindAddress()}
-              placeholder="Address or Google Maps link..."
-              className="w-full pl-8 pr-2 py-1.5 text-xs bg-[#F7FAF8] border border-[#DEEBE1] rounded-lg text-[#1D3624] focus:outline-none focus:ring-1 focus:ring-[#3B7750] focus:bg-white truncate"
-            />
-          </div>
+      {/* Header: Title + Sync Sheets Button */}
+      <div className="flex items-center justify-between border-b border-[#EEF4EF] pb-3">
+        <div className="flex items-center gap-2 text-[#2A5739] font-bold text-sm">
+          <MapPin className="w-4 h-4 text-[#356B48]" />
+          <span>Sparks Center</span>
+        </div>
+        {onSyncSheets && (
           <button
-            onClick={onFindAddress}
-            className="px-3 py-1.5 text-xs font-semibold text-white bg-[#306041] hover:bg-[#254C33] active:scale-[0.98] rounded-lg shadow-2xs transition-all shrink-0"
+            onClick={onSyncSheets}
+            disabled={isSyncing}
+            title="Sync live from Google Sheets"
+            className="text-[10px] font-bold text-[#2A5739] bg-[#EFF6F1] hover:bg-[#E3EFE6] px-2 py-1 rounded-lg border border-[#D5E5DA] flex items-center gap-1 transition-all active:scale-95 disabled:opacity-50"
           >
-            Find
+            <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-[#306041]' : 'text-[#356B48]'}`} />
+            <span>{isSyncing ? 'Syncing...' : 'Sync Sheets'}</span>
           </button>
-        </div>
+        )}
       </div>
 
-      {/* OR DIVIDER */}
-      <div className="relative flex items-center justify-center">
-        <div className="border-t border-[#E5EFE7] w-full"></div>
-        <span className="bg-white px-2 text-[10px] font-bold text-[#8AA293] uppercase tracking-wider absolute">
-          OR
-        </span>
-      </div>
-
-      {/* LATITUDE & LONGITUDE INPUTS */}
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="space-y-1">
-          <label className="text-[10px] font-semibold text-[#5A7766] uppercase tracking-wider">
-            Latitude (Optional)
+      {/* 1. DIRECT PER-CENTER DROPDOWN */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-[#5A7766]">
+            Pilih Sparks Center
           </label>
-          <input
-            type="text"
-            value={latitude}
-            onChange={(e) => setLatitude(e.target.value)}
-            placeholder="-6.2291778"
-            className="w-full px-2.5 py-1.5 text-xs bg-[#F7FAF8] border border-[#DEEBE1] rounded-lg text-[#1D3624] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-[#3B7750] focus:bg-white"
-          />
+          <span className="text-[10px] font-bold text-[#865E0C] bg-[#FEF8DF] px-2 py-0.5 rounded border border-[#F3DF9A]">
+            {availableCenters.length} Cabang
+          </span>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-semibold text-[#5A7766] uppercase tracking-wider">
-            Longitude (Optional)
-          </label>
-          <input
-            type="text"
-            value={longitude}
-            onChange={(e) => setLongitude(e.target.value)}
-            placeholder="106.6339140"
-            className="w-full px-2.5 py-1.5 text-xs bg-[#F7FAF8] border border-[#DEEBE1] rounded-lg text-[#1D3624] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-[#3B7750] focus:bg-white"
-          />
+        <div className="relative">
+          <select
+            value={center.name}
+            onChange={(e) => {
+              const chosen = availableCenters.find((c) => c.name === e.target.value);
+              if (chosen && onSelectCenter) {
+                onSelectCenter(chosen);
+              }
+            }}
+            className="w-full pl-3 pr-8 py-2 text-xs font-semibold bg-[#F7FAF8] border border-[#CBDED0] rounded-xl text-[#183622] hover:border-[#356B48] focus:outline-none focus:ring-1 focus:ring-[#356B48] cursor-pointer transition-all appearance-none"
+          >
+            {availableCenters.map((c) => (
+              <option key={c.id || c.name} value={c.name}>
+                {c.name} {c.poiCount ? `(${c.poiCount} POIs)` : ''}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-4 h-4 text-[#5A7766] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
+
+        {/* Selected Center Summary Pill */}
+        <div className="p-2.5 bg-[#EFF6F1] rounded-xl border border-[#D5E5DA] text-xs space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="font-extrabold text-[#183622] truncate text-xs">{center.name}</span>
+            <span className="text-[10px] font-bold text-[#2A5739] bg-white px-2 py-0.5 rounded border border-[#CBDED0]">
+              {center.city}
+            </span>
+          </div>
+          <div className="text-[11px] text-[#557261] flex items-center justify-between font-mono">
+            <span>Lat: {Number(center.lat).toFixed(4)}, Lng: {Number(center.lng).toFixed(4)}</span>
+            <span className="font-bold text-[#204A2F] bg-white/70 px-1.5 py-0.5 rounded">{pois.length} POIs</span>
+          </div>
         </div>
       </div>
 
-      {/* USE MY CURRENT LOCATION BUTTON */}
-      <button
-        onClick={onUseCurrentLocation}
-        className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-[#295637] bg-[#EFF6F1] hover:bg-[#E3EFE6] border border-[#D5E5DA] rounded-lg transition-all"
-      >
-        <Crosshair className="w-3.5 h-3.5 text-[#356B48]" />
-        <span>Use My Current Location</span>
-      </button>
+      {/* 2. OPTIONAL MANUAL SEARCH / CUSTOM COORDINATES ACCORDION */}
+      <div className="pt-0.5">
+        <button
+          onClick={() => setShowCustomCoords(!showCustomCoords)}
+          className="w-full flex items-center justify-between py-1 px-1 text-[11px] font-semibold text-[#4B6E57] hover:text-[#183622] transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <SlidersHorizontal className="w-3 h-3 text-[#5A7766]" />
+            <span>{showCustomCoords ? 'Sembunyikan Input Manual' : 'Opsi Alamat / GPS Manual'}</span>
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showCustomCoords ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showCustomCoords && (
+          <div className="space-y-3 pt-2 mt-1 border-t border-[#EEF4EF]">
+            {/* SEARCH ADDRESS */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[#5A7766]">
+                Cari Alamat / Link GMaps
+              </label>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-[#86A292] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchAddress}
+                    onChange={(e) => setSearchAddress(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && onFindAddress()}
+                    placeholder="Address or Google Maps link..."
+                    className="w-full pl-8 pr-2 py-1.5 text-xs bg-[#F7FAF8] border border-[#DEEBE1] rounded-lg text-[#1D3624] focus:outline-none focus:ring-1 focus:ring-[#3B7750] focus:bg-white truncate"
+                  />
+                </div>
+                <button
+                  onClick={onFindAddress}
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-[#306041] hover:bg-[#254C33] active:scale-[0.98] rounded-lg shadow-2xs transition-all shrink-0"
+                >
+                  Find
+                </button>
+              </div>
+            </div>
+
+            {/* LATITUDE & LONGITUDE INPUTS */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-[#5A7766] uppercase tracking-wider">
+                  Latitude
+                </label>
+                <input
+                  type="text"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                  placeholder="-6.2291778"
+                  className="w-full px-2.5 py-1.5 text-xs bg-[#F7FAF8] border border-[#DEEBE1] rounded-lg text-[#1D3624] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-[#3B7750] focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-[#5A7766] uppercase tracking-wider">
+                  Longitude
+                </label>
+                <input
+                  type="text"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                  placeholder="106.6339140"
+                  className="w-full px-2.5 py-1.5 text-xs bg-[#F7FAF8] border border-[#DEEBE1] rounded-lg text-[#1D3624] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-[#3B7750] focus:bg-white"
+                />
+              </div>
+            </div>
+
+            {/* USE MY CURRENT LOCATION BUTTON */}
+            <button
+              onClick={onUseCurrentLocation}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs font-semibold text-[#295637] bg-[#EFF6F1] hover:bg-[#E3EFE6] border border-[#D5E5DA] rounded-lg transition-all"
+            >
+              <Crosshair className="w-3.5 h-3.5 text-[#356B48]" />
+              <span>Gunakan GPS Saya Saat Ini</span>
+            </button>
+          </div>
+        )}
+      </div>
+
 
       {/* RADIUS (METERS) */}
       <div className="space-y-1">

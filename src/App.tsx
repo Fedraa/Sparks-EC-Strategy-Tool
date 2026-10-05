@@ -23,14 +23,17 @@ import {
   MapPoiItem,
   getPoisForCenter,
 } from './data/sparksLocations';
+import { syncFromGoogleSheets } from './services/sheetsService';
 import { PoICategory, PartnerVenue } from './types';
 
 export default function App() {
-  // Center & Search State
-  const [center, setCenter] = useState<SparksCenterLocation>(PRESET_SPARKS_CENTERS[0]);
-  const [searchAddress, setSearchAddress] = useState('https://maps.app.goo.gl/qS7... (Alam Sutera, Tangerang)');
-  const [latitude, setLatitude] = useState('-6.22917780268102');
-  const [longitude, setLongitude] = useState('106.6339140117745');
+  // Center & Search State (Default to Bogor Padjajaran from Google Sheets)
+  const defaultCenter =
+    PRESET_SPARKS_CENTERS.find((c) => c.name.includes('Bogor')) || PRESET_SPARKS_CENTERS[0];
+  const [center, setCenter] = useState<SparksCenterLocation>(defaultCenter);
+  const [searchAddress, setSearchAddress] = useState(defaultCenter.name);
+  const [latitude, setLatitude] = useState(defaultCenter.lat.toString());
+  const [longitude, setLongitude] = useState(defaultCenter.lng.toString());
   const [radiusMeters, setRadiusMeters] = useState<number>(5000); // 5-7 km radius as requested
   const [analysisDay, setAnalysisDay] = useState<string>('Thu');
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([
@@ -40,8 +43,10 @@ export default function App() {
   // Active Consultant / Team Route
   const [activeConsultant, setActiveConsultant] = useState<'A' | 'B'>('A');
 
-  // App interaction mode
-  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  // App interaction mode (Auto initialized with real Google Sheets data)
+  const [isInitialized, setIsInitialized] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncNotification, setSyncNotification] = useState<string>('');
   const [activeOverlayModal, setActiveOverlayModal] = useState<
     'none' | 'aiPlanner' | 'calculator' | 'pitch' | 'poiMatrix'
   >('none');
@@ -60,15 +65,62 @@ export default function App() {
         center.lat,
         center.lng,
         radiusMeters,
-        selectedCategoryIds
+        selectedCategoryIds,
+        center.name
       );
       setPois(generatedPois);
 
-      if (generatedPois.length > 0 && !selectedPoi) {
-        setSelectedPoi(generatedPois[0]);
+      if (generatedPois.length > 0) {
+        setSelectedPoi((prev) =>
+          prev && generatedPois.some((p) => p.id === prev.id) ? prev : generatedPois[0]
+        );
+        setRoutePoiIds([
+          generatedPois[0]?.id || '',
+          generatedPois[1]?.id || '',
+          generatedPois[2]?.id || '',
+        ].filter(Boolean));
+      } else {
+        setSelectedPoi(null);
+        setRoutePoiIds([]);
       }
     }
   }, [center, radiusMeters, selectedCategoryIds, isInitialized]);
+
+  // Center selection handler
+  const handleSelectCenter = (newCenter: SparksCenterLocation) => {
+    setCenter(newCenter);
+    setLatitude(newCenter.lat.toString());
+    setLongitude(newCenter.lng.toString());
+    setSearchAddress(newCenter.name);
+    setIsInitialized(true);
+  };
+
+  // Live Sync handler with Google Sheets
+  const handleSyncSheets = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncFromGoogleSheets();
+      if (res.success) {
+        setSyncNotification(`✓ Berhasil sync ${res.totalPois} POIs dari Google Sheets!`);
+        const updatedPois = getPoisForCenter(
+          center.lat,
+          center.lng,
+          radiusMeters,
+          selectedCategoryIds,
+          center.name
+        );
+        setPois(updatedPois);
+      } else {
+        setSyncNotification(`Info: Menggunakan data tersimpan (${res.message})`);
+      }
+    } catch (e: any) {
+      setSyncNotification(`Sync error: ${e.message}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncNotification(''), 4000);
+    }
+  };
+
 
   // Build the Google Maps multi-stop Route URL (as in Pic 2!)
   const getConsultantStops = () => {
@@ -258,10 +310,29 @@ export default function App() {
         </div>
       </header>
 
+      {/* Sync Notification Toast Banner */}
+      {syncNotification && (
+        <div className="bg-[#234932] text-white text-xs px-4 py-2 font-medium flex items-center justify-between shadow-md transition-all">
+          <div className="max-w-[1680px] mx-auto w-full flex items-center justify-between">
+            <span>{syncNotification}</span>
+            <button
+              onClick={() => setSyncNotification('')}
+              className="text-[#DCE8DE] hover:text-white text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Two-Column Layout (Exact Layout of the Screenshot!) */}
       <div className="flex-1 max-w-[1680px] w-full mx-auto p-4 sm:p-5 flex flex-col lg:flex-row gap-5">
         {/* Left Column: Sidebar */}
         <Sidebar
+          centers={PRESET_SPARKS_CENTERS}
+          onSelectCenter={handleSelectCenter}
+          onSyncSheets={handleSyncSheets}
+          isSyncing={isSyncing}
           searchAddress={searchAddress}
           setSearchAddress={setSearchAddress}
           latitude={latitude}
@@ -286,6 +357,7 @@ export default function App() {
           onCopyGmapsRoute={handleCopyGmapsRoute}
           copiedGmaps={copiedGmaps}
         />
+
 
         {/* Right Column: Main Workspace */}
         <MainWorkspace

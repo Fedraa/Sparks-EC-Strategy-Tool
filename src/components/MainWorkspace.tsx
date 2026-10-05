@@ -570,12 +570,34 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     </div>
 
                     <div className="space-y-0.5">
-                      <h4 className="text-base font-extrabold text-[#173020] leading-snug hover:text-[#2E5B3E]">
-                        {poi.name}
-                      </h4>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h4 className="text-base font-extrabold text-[#173020] leading-snug hover:text-[#2E5B3E]">
+                          {poi.name}
+                        </h4>
+                        {poi.score !== undefined && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-[#865E0C] bg-[#FEF8DF] px-2 py-0.5 rounded border border-[#F3DF9A]">
+                              Rank #{poi.ranking || stopNumber}
+                            </span>
+                            <span className="text-[10px] font-bold text-[#204A2F] bg-[#EAF4ED] px-2 py-0.5 rounded border border-[#CFE5D6]">
+                              Skor {poi.score.toFixed(1)}
+                            </span>
+                            {poi.tier && (
+                              <span className="text-[10px] font-extrabold text-[#1B3E27] bg-[#EFF7F2] px-1.5 py-0.5 rounded border border-[#D5E5DA]">
+                                Tier {poi.tier}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <div className="text-[11px] font-semibold text-[#5A7766] flex items-center gap-1 font-mono uppercase tracking-wider">
                         <Navigation className="w-3 h-3 text-[#356B48]" />
-                        <span>{(poi.distanceKm * 1000).toFixed(0)}M FROM SPARKS CENTER</span>
+                        <span>{(poi.distanceKm * 1000).toFixed(0)}M DARI SPARKS CENTER</span>
+                        {poi.address && (
+                          <span className="text-[#7A9584] truncate max-w-sm normal-case font-sans">
+                            · {poi.address}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -629,7 +651,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
                   {/* GMAPS Link with External Link Icon */}
                   <a
-                    href={singleGmapsUrl}
+                    href={poi.mapsUrl || singleGmapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -642,6 +664,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               </div>
             );
           })}
+
         </div>
       </div>
 
